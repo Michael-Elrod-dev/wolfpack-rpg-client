@@ -9,7 +9,7 @@ import { EventSubService } from 'src/app/services/eventsub/eventsub.service';
  */
 export interface WidgetComponent {
   /**
-   * IRC service used to receive whisper events.
+   * EventSub service used to receive whisper events.
    */
   eventSubService: EventSubService | undefined;
   /**

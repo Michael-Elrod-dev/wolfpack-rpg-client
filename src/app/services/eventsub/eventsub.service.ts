@@ -237,10 +237,10 @@ export class EventSubService {
               data.metadata.subscription_type === 'user.whisper.message'
             ) {
               const whisperEvent = data.payload.event;
-              this.onWhisper(
-                whisperEvent.whisper.text,
-                whisperEvent.from_user_id === userData.user_id
-              );
+              const isSelf = whisperEvent.from_user_id === userData.user_id;
+              if (!isSelf) {
+                this.onWhisper(whisperEvent.whisper.text, isSelf);
+              }
             }
           } else if (data.metadata?.message_type === 'session_reconnect') {
             this.reconnect('Session reconnect requested');

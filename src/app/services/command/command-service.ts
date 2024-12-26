@@ -231,7 +231,7 @@ export class CommandService {
   /**
    * Subscribes to a command by its id. This will cause the callback passed in
    * to be called with the capture groups provided when the command response
-   * category is detected in the irc stream.
+   * category is detected in the eventsub stream.
    * @param group The name of the command group.
    * @param command The name of the individual command.
    * @param responses Must be responses to maintain type safety.
@@ -265,7 +265,7 @@ export class CommandService {
   /**
    * Subscribes to a message by its id. This will cause the callback passed in
    * to be called with the capture groups provided when the message is detected
-   * in the irc stream.
+   * in the eventsub stream.
    * @param group The name of the message group.
    * @param name The name of the individual message.
    * @param callback The method to call when the message is detected.
@@ -330,7 +330,7 @@ export class CommandService {
   /**
    * Subscribes to a command by its id. This will cause the callback passed in
    * to be called with the capture groups provided when the command response
-   * category is detected in the irc stream.
+   * category is detected in the eventsub stream.
    * @param group The name of the command group.
    * @param command The name of the individual command.
    * @param responses Must be responses to maintain type safety.

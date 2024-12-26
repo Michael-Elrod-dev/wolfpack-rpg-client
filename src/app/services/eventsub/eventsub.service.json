@@ -5,12 +5,6 @@
     "options": {
       "clientId": "full2dvcfxpu2g8pgalowdipot41ft"
     },
-    "connection": {
-      "server": "irc-ws.chat.twitch.tv",
-      "port": 443,
-      "reconnect": true,
-      "secure": true
-    },
     "identity": {
       "username": "",
       "password": ""

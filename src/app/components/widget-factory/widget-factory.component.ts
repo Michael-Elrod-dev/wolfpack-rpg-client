@@ -17,9 +17,9 @@ import { EventSubService } from 'src/app/services/eventsub/eventsub.service';
  * Component that acts as a placeholder for widgets in the widget container.
  */
 @Component({
-    selector: 'app-widget-factory',
-    template: '<ng-template appWidgetContainer></ng-template>',
-    standalone: false
+  selector: 'app-widget-factory',
+  template: '<ng-template appWidgetContainer></ng-template>',
+  standalone: false,
 })
 export class WidgetFactoryComponent implements OnInit {
   /**
@@ -29,7 +29,7 @@ export class WidgetFactoryComponent implements OnInit {
   factory: ComponentFactory<WidgetComponent> | undefined;
 
   /**
-   * Reference to the singleton IRC service.
+   * Reference to the EventSub service.
    */
   @Input()
   eventSubService: EventSubService | undefined;

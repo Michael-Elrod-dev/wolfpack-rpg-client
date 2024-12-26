@@ -9,6 +9,53 @@ import { EventSubService } from './eventsub.service';
 import { Message } from './eventsub.service';
 import { WhisperService } from './whisper.service';
 import * as eventSubConfig from './eventsub.service.json';
+import { of } from 'rxjs';
+
+function createWelcomeMessage(): MessageEvent {
+  return {
+    data: JSON.stringify({
+      metadata: { message_type: 'session_welcome' },
+      payload: { session: { id: 'test-session-id' } },
+    }),
+  } as MessageEvent;
+}
+
+function createWhisperMessage(text: string, fromUserId: string): MessageEvent {
+  return {
+    data: JSON.stringify({
+      metadata: {
+        message_type: 'notification',
+        subscription_type: 'user.whisper.message',
+      },
+      payload: {
+        event: {
+          from_user_id: fromUserId,
+          whisper: { text },
+        },
+      },
+    }),
+  } as MessageEvent;
+}
+
+function createChannelChatMessage(message: string): MessageEvent {
+  return {
+    data: JSON.stringify({
+      metadata: {
+        message_type: 'notification',
+        subscription_type: 'channel.chat.message',
+      },
+      payload: {
+        event: {
+          broadcaster_login: eventSubConfig.streamerAccount,
+          chatter_login: eventSubConfig.botAccount,
+          message: {
+            text: message,
+          },
+        },
+      },
+    }),
+  } as MessageEvent;
+}
 
 describe('EventSubService', () => {
   let service: EventSubService;
@@ -33,30 +80,8 @@ describe('EventSubService', () => {
           wsInstance.onopen({} as Event);
         }
         if (wsInstance.onmessage) {
-          wsInstance.onmessage({
-            data: JSON.stringify({
-              metadata: { message_type: 'session_welcome' },
-              payload: { session: { id: 'test-session-id' } },
-            }),
-          } as MessageEvent);
-
-          wsInstance.onmessage({
-            data: JSON.stringify({
-              metadata: {
-                message_type: 'notification',
-                subscription_type: 'channel.chat.message',
-              },
-              payload: {
-                event: {
-                  broadcaster_login: eventSubConfig.streamerAccount,
-                  chatter_login: eventSubConfig.botAccount,
-                  message: {
-                    text: message,
-                  },
-                },
-              },
-            }),
-          } as MessageEvent);
+          wsInstance.onmessage(createWelcomeMessage());
+          wsInstance.onmessage(createChannelChatMessage(message));
         }
       }, 0);
       return wsInstance;
@@ -89,6 +114,7 @@ describe('EventSubService', () => {
     userServiceSpy.getUserId.and.returnValue(userData);
     whisperServiceSpy = TestUtils.spyOnClass(WhisperService);
     httpClientSpy = jasmine.createSpyObj('HttpClient', ['post']);
+    httpClientSpy.post.and.returnValue(of({}));
     service = new EventSubService(
       httpClientSpy,
       configManagerSpy,
@@ -112,12 +138,7 @@ describe('EventSubService', () => {
           wsInstance.onopen({} as Event);
         }
         if (wsInstance.onmessage) {
-          wsInstance.onmessage({
-            data: JSON.stringify({
-              metadata: { message_type: 'session_welcome' },
-              payload: { session: { id: 'test-session-id' } },
-            }),
-          } as MessageEvent);
+          wsInstance.onmessage(createWelcomeMessage());
         }
       }, 0);
       return wsInstance;
@@ -161,11 +182,11 @@ describe('EventSubService', () => {
   });
 
   it('should call registered error handlers on error', async () => {
+    const consoleSpy = spyOn(console, 'error'); // supress expected error message in terminal
     const errorHandlerObj = { onError: (message: Message) => {} };
     const errorSpy = spyOn(errorHandlerObj, 'onError');
     const handlerKey = `test-${Date.now()}`;
     service.registerForError(handlerKey, errorHandlerObj.onError);
-
     const wsInstance = jasmine.createSpyObj('WebSocket', [
       'onopen',
       'onmessage',
@@ -183,6 +204,7 @@ describe('EventSubService', () => {
 
     await connectPromise;
     expect(errorSpy).toHaveBeenCalled();
+    consoleSpy.calls.reset();
   });
 
   it('should not overwrite error handlers with the same key by default', () => {
@@ -228,7 +250,6 @@ describe('EventSubService', () => {
     const callbackSpy = spyOn(callbackObj, 'onWhisper');
     const handlerKey = `test-${Date.now()}`;
     service.register(handlerKey, callbackObj.onWhisper);
-
     const wsInstance = jasmine.createSpyObj('WebSocket', [
       'onopen',
       'onmessage',
@@ -241,33 +262,14 @@ describe('EventSubService', () => {
           wsInstance.onopen({} as Event);
         }
         if (wsInstance.onmessage) {
-          wsInstance.onmessage({
-            data: JSON.stringify({
-              metadata: { message_type: 'session_welcome' },
-              payload: { session: { id: 'test-session-id' } },
-            }),
-          } as MessageEvent);
-
-          wsInstance.onmessage({
-            data: JSON.stringify({
-              metadata: {
-                message_type: 'notification',
-                subscription_type: 'user.whisper.message',
-              },
-              payload: {
-                event: {
-                  whisper: {
-                    text: 'test whisper',
-                  },
-                },
-              },
-            }),
-          } as MessageEvent);
+          wsInstance.onmessage(createWelcomeMessage());
+          wsInstance.onmessage(
+            createWhisperMessage('test whisper', 'test-user')
+          );
         }
       }, 0);
       return wsInstance;
     });
-
     await connectPromise;
     expect(callbackSpy).toHaveBeenCalled();
   });
@@ -312,50 +314,73 @@ describe('EventSubService', () => {
 
   it('should properly format messages', async () => {
     const wsInstance = jasmine.createSpyObj('WebSocket', [
-      'onopen',
       'onmessage',
+      'onopen',
       'onclose',
       'onerror',
     ]);
-
-    // Setup connection
+    let messageHandler = (event: MessageEvent) => {};
+    let openHandler = (event: Event) => {};
+    let closeHandler = (event: CloseEvent) => {};
+    let errorHandler = (event: Event) => {};
     await service.connectUsing(() => {
-      setTimeout(() => {
-        if (wsInstance.onopen) {
-          wsInstance.onopen({} as Event);
-        }
-        if (wsInstance.onmessage) {
-          wsInstance.onmessage({
-            data: JSON.stringify({
-              metadata: { message_type: 'session_welcome' },
-              payload: { session: { id: 'test-session-id' } },
-            }),
-          });
-        }
-      }, 0);
+      Object.defineProperties(wsInstance, {
+        onmessage: {
+          set(handler) {
+            messageHandler = handler;
+          },
+          get() {
+            return messageHandler;
+          },
+        },
+        onopen: {
+          set(handler) {
+            openHandler = handler;
+            setTimeout(() => handler({} as Event), 0);
+          },
+          get() {
+            return openHandler;
+          },
+        },
+        onclose: {
+          set(handler) {
+            closeHandler = handler;
+          },
+          get() {
+            return closeHandler;
+          },
+        },
+        onerror: {
+          set(handler) {
+            errorHandler = handler;
+          },
+          get() {
+            return errorHandler;
+          },
+        },
+      });
+
       return wsInstance;
     });
-
+    await new Promise(resolve => setTimeout(resolve, 0));
     const whispers: Message[] = [];
     service.register('test', (message: Message) => {
       whispers.push(message);
     });
-
     const timestamp = Date.now().toString();
-
-    // Call onWhisper directly like IRC does
-    service['onWhisper']('cmd', true);
-    service['onWhisper']('response', false);
-    service['onWhisper']('cmd', true);
-    service['onWhisper']('at', false);
-    service['onWhisper'](timestamp, false);
-
+    const userData = await userServiceSpy.getUserAuth();
+    messageHandler(createWelcomeMessage());
+    messageHandler(createWhisperMessage('cmd', userData.user_id));
+    messageHandler(createWhisperMessage('response', 'other_user'));
+    messageHandler(createWhisperMessage('cmd', userData.user_id));
+    messageHandler(createWhisperMessage('at', 'other_user'));
+    messageHandler(createWhisperMessage(timestamp, 'other_user'));
+    await new Promise(resolve => setTimeout(resolve, 0));
     expect(service.lines.length).toBe(3);
     expect(whispers[0].text).toBe('response');
     expect(whispers[1].text).toBe('at');
     expect(whispers[2].text).toBe(timestamp);
   });
-
   it('should handle sends from the message queue', async () => {
     const wsInstance = jasmine.createSpyObj('WebSocket', [
       'onopen',
@@ -364,7 +389,6 @@ describe('EventSubService', () => {
       'onerror',
     ]);
     let messageCallback: Function = () => {};
-
     const originalOnMessage =
       Object.getOwnPropertyDescriptor(wsInstance, 'onmessage')?.set ||
       (() => {});
@@ -374,22 +398,15 @@ describe('EventSubService', () => {
         originalOnMessage.call(this, callback);
       },
     });
-
     await service.connectUsing(() => {
       setTimeout(() => {
         if (wsInstance.onopen) {
           wsInstance.onopen({} as Event);
         }
-        messageCallback({
-          data: JSON.stringify({
-            metadata: { message_type: 'session_welcome' },
-            payload: { session: { id: 'test-session-id' } },
-          }),
-        });
+        messageCallback(createWelcomeMessage());
       }, 0);
       return wsInstance;
     });
-
     const whispers: Message[] = [];
     service.register('test', (message: Message) => {
       whispers.push(message);
@@ -403,47 +420,12 @@ describe('EventSubService', () => {
     const timestamp = Date.now().toString();
     service.messageQueue.send('cmd');
     await service.messageQueue.processQueue();
-
-    messageCallback({
-      data: JSON.stringify({
-        metadata: {
-          message_type: 'notification',
-          subscription_type: 'user.whisper.message',
-        },
-        payload: {
-          event: {
-            whisper: { text: 'response' },
-          },
-        },
-      }),
-    });
-    messageCallback({
-      data: JSON.stringify({
-        metadata: {
-          message_type: 'notification',
-          subscription_type: 'user.whisper.message',
-        },
-        payload: {
-          event: {
-            whisper: { text: 'at' },
-          },
-        },
-      }),
-    });
-    messageCallback({
-      data: JSON.stringify({
-        metadata: {
-          message_type: 'notification',
-          subscription_type: 'user.whisper.message',
-        },
-        payload: {
-          event: {
-            whisper: { text: timestamp },
-          },
-        },
-      }),
-    });
-
+    const testMessages = [
+      createWhisperMessage('response', 'other_user'),
+      createWhisperMessage('at', 'other_user'),
+      createWhisperMessage(timestamp, 'other_user'),
+    ];
+    testMessages.forEach(message => messageCallback(message));
     expect(service.lines.length).toBe(4);
     expect(whispers[0].text).toBe('cmd');
     expect(whispers[1].text).toBe('response');
