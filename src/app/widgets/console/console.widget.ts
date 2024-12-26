@@ -14,8 +14,9 @@ import {
  * authenticated user and the target account.
  */
 @Component({
-  selector: 'app-console-widget',
-  templateUrl: './console.widget.html',
+    selector: 'app-console-widget',
+    templateUrl: './console.widget.html',
+    standalone: false
 })
 export class ConsoleWidgetComponent implements WidgetComponent {
   private static maxHistory = 100;
