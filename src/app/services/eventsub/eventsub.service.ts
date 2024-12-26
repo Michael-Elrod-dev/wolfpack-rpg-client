@@ -28,6 +28,10 @@ export class EventSubService {
    * The WebSocket connection that handles the EventSub connection.
    */
   connection: WebSocket | null = null;
+  /**
+   * The unique session identifier assigned by Twitch's EventSub service.
+   * This ID is required for subscribing to events and maintaining the WebSocket connection.
+   */
   private sessionId: string | null = null;
   /**
    * A map of all registered callback functions to receive whisper events.
@@ -135,7 +139,7 @@ export class EventSubService {
   /**
    * Queues a message to send as a whisper to the bot account the app is
    * connected to. This is rate limited to avoid exceeding Twitch's whisper
-   * limits, as per https://dev.twitch.tv/docs/irc/guide#command--message-limits
+   * limits, as per https://dev.twitch.tv/docs/chat/#command--message-limits
    * @param message The message to send
    */
   send(message: string): void {
